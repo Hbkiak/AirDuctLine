@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Office MES Prototype</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">MES</div>
+          <div>
+            <strong>Office MES</strong>
+            <span>Sales to Delivery</span>
+          </div>
+        </div>
+        <nav class="nav" aria-label="Main">
+          <button class="nav-item active" data-view="dashboard">Dashboard</button>
+          <button class="nav-item" data-view="inquiry">รับงานขาย</button>
+          <button class="nav-item" data-view="workflow">Workflow</button>
+          <button class="nav-item" data-view="production">Production</button>
+          <button class="nav-item" data-view="delivery">Delivery</button>
+          <button class="nav-item" data-view="line">LINE</button>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Prototype v2 + Backend</p>
+            <h1 id="pageTitle">Dashboard</h1>
+          </div>
+          <div class="top-actions">
+            <label class="role-switch">
+              ผู้ใช้
+              <select id="userSelect" aria-label="เลือกผู้ใช้งาน"></select>
+            </label>
+            <label class="role-switch">
+              บทบาท
+              <select id="roleSelect" aria-label="เลือกบทบาทผู้ใช้งาน" disabled>
+                <option value="sales">ฝ่ายขาย</option>
+                <option value="planning">วางแผน</option>
+                <option value="production">ฝ่ายผลิต</option>
+                <option value="warehouse">คลัง</option>
+                <option value="logistics">ขนส่ง</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            <button class="icon-button" id="seedBtn" title="เพิ่มงานตัวอย่าง">+</button>
+            <button class="ghost-button danger-button" id="bulkDeleteBtn">ลบแบบเลือก</button>
+            <button class="primary-button" data-open-create>สร้างงานใหม่</button>
+          </div>
+        </header>
+
+        <section class="view active" id="dashboard">
+          <div class="stats-grid" id="statsGrid"></div>
+          <div class="content-grid">
+            <section class="panel wide">
+              <div class="panel-header">
+                <h2>งานล่าสุด</h2>
+                <div class="panel-tools">
+                  <select id="statusFilter" aria-label="กรองสถานะ">
+                    <option value="all">ทุกสถานะ</option>
+                  </select>
+                  <button class="ghost-button danger-button" id="salesDeleteSelectedBtn" type="button">ฝ่ายขายลบรายการที่เลือก</button>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th class="select-col"><input type="checkbox" id="dashboardSelectAll" aria-label="เลือกงานทั้งหมดใน Dashboard" /></th>
+                      <th>เอกสาร</th>
+                      <th>ลูกค้า</th>
+                      <th>รายการ</th>
+                      <th>ผู้รับผิดชอบ</th>
+                      <th>สถานะ</th>
+                      <th>กำหนดส่ง</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="jobsTable"></tbody>
+                </table>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <h2>แจ้งเตือนวันนี้</h2>
+              </div>
+              <div class="alert-list" id="todayAlerts"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="inquiry">
+          <section class="panel">
+            <div class="panel-header">
+              <h2>รับคำสั่งซื้อ / ทำใบเสนอราคา</h2>
+              <span class="muted" id="createPermissionText">ข้อมูลและไฟล์แนบจะถูกบันทึกลง backend local แล้ว</span>
+            </div>
+            <form class="form-grid" id="createForm">
+              <label>
+                ลูกค้า
+                <input name="customer" required placeholder="เช่น Siam Metal" />
+              </label>
+              <label>
+                ฝ่ายขาย
+                <select name="salesOwner" id="salesOwnerSelect"></select>
+              </label>
+              <div class="line-items-field full">
+                <div class="field-header">
+                  <strong>รายการสินค้า/งาน</strong>
+                  <button type="button" class="ghost-button" id="addLineItemBtn">เพิ่มรายการ</button>
+                </div>
+                <div class="line-items" id="lineItems">
+                  <div class="line-item-row">
+                    <label>
+                      รายการ
+                      <input name="itemName" required placeholder="เช่น ชุดโครงเหล็กตามแบบ" />
+                    </label>
+                    <label>
+                      จำนวน
+                      <input name="itemQty" type="number" min="1" value="1" required />
+                    </label>
+                    <button type="button" class="icon-button line-remove" data-remove-line title="ลบรายการ">×</button>
+                  </div>
+                </div>
+              </div>
+              <label>
+                ประเภทงาน
+                <select name="jobType">
+                  <option value="design">ต้องถอดแบบ/ประเมินต้นทุน</option>
+                  <option value="stock">สินค้ามาตรฐาน ต้องเช็คสต็อก</option>
+                  <option value="simple">งานง่าย ฝ่ายขายทำราคาเอง</option>
+                </select>
+              </label>
+              <label>
+                กำหนดส่ง
+                <input name="dueDate" type="date" required />
+              </label>
+              <label>
+                วิธีจัดส่ง
+                <select name="deliveryMode">
+                  <option>บริษัทจัดส่ง</option>
+                  <option>ลูกค้ารับเอง</option>
+                </select>
+              </label>
+              <label>
+                เลขอ้างอิงลูกค้า
+                <input name="customerRef" placeholder="PO/RFQ/ข้อความ LINE" />
+              </label>
+              <label class="full">
+                ไฟล์/เอกสารที่ได้รับ
+                <input
+                  type="file"
+                  name="attachments"
+                  id="attachmentsInput"
+                  multiple
+                  accept=".pdf,.xls,.xlsx,.doc,.docx,.jpg,.jpeg,.png"
+                />
+                <span class="muted">ไฟล์จะถูกอัปโหลดไปที่โฟลเดอร์ uploads/ และแนบลิงก์ไว้กับงาน</span>
+                <div class="file-preview" id="filePreview">ยังไม่ได้เลือกไฟล์</div>
+              </label>
+              <label class="full">
+                หมายเหตุ
+                <textarea name="note" rows="3" placeholder="รายละเอียดจากลูกค้า เงื่อนไขราคา จุดที่ต้องระวัง"></textarea>
+              </label>
+              <div class="form-actions full">
+                <button type="reset" class="ghost-button">ล้างข้อมูล</button>
+                <button type="submit" class="primary-button" id="createSubmitBtn">บันทึกงาน</button>
+              </div>
+            </form>
+          </section>
+        </section>
+
+        <section class="view" id="workflow">
+          <div class="kanban" id="kanban"></div>
+        </section>
+
+        <section class="view" id="production">
+          <div class="content-grid">
+            <section class="panel wide">
+              <div class="panel-header">
+                <h2>SO / Work Order</h2>
+              </div>
+              <div id="workOrders" class="work-order-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <h2>บันทึกผลผลิต</h2>
+              </div>
+              <form class="stack-form" id="productionForm">
+                <label>
+                  เลือกงาน
+                  <select name="jobId" id="productionJob"></select>
+                </label>
+                <label>
+                  จำนวนดี
+                  <input type="number" name="goodQty" min="0" value="100" />
+                </label>
+                <label>
+                  จำนวนเสีย
+                  <input type="number" name="defectQty" min="0" value="0" />
+                </label>
+                <label>
+                  หมายเหตุ
+                  <textarea name="note" rows="3"></textarea>
+                </label>
+                <button class="primary-button" type="submit">ปิดงานผลิต</button>
+              </form>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="delivery">
+          <section class="panel">
+            <div class="panel-header">
+              <h2>แผนจัดส่ง</h2>
+              <span class="muted">ติดตามยืนยันลูกค้า จองรถ และปิดงานหลังส่งมอบ</span>
+            </div>
+            <div class="delivery-list" id="deliveryList"></div>
+          </section>
+        </section>
+
+        <section class="view" id="line">
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-header">
+                <h2>LINE Command จำลอง</h2>
+                <a class="ghost-button" href="/line-mobile-preview.html" target="_blank" rel="noreferrer">เปิด Mobile Preview</a>
+              </div>
+              <div class="command-box">
+                <button data-command="งานวันนี้">งานวันนี้</button>
+                <button data-command="รอถอดแบบ">รอถอดแบบ</button>
+                <button data-command="ต้องจองรถ">ต้องจองรถ</button>
+                <button data-command="ผลิตค้าง">ผลิตค้าง</button>
+              </div>
+              <pre id="lineReply">เลือกคำสั่งเพื่อดูข้อความตอบกลับ</pre>
+            </section>
+            <section class="panel wide">
+              <div class="panel-header">
+                <h2>LINE Integration Plan</h2>
+              </div>
+              <div class="alert-list">
+                <div class="alert">
+                  <strong>แจ้งเตือนอัตโนมัติ</strong>
+                  <span>เมื่อสถานะเปลี่ยน backend จะบันทึก log ไว้ก่อน และสามารถต่อ LINE push message ภายหลังได้</span>
+                </div>
+                <div class="alert">
+                  <strong>รับคำสั่งจาก LINE</strong>
+                  <span>ขั้นต่อไปคือเพิ่ม endpoint webhook สำหรับคำสั่ง เช่น "งานวันนี้", "งาน INQ...", "ปิดผลิต WO..."</span>
+                </div>
+                <div class="alert">
+                  <strong>ข้อมูลที่ต้องเตรียม</strong>
+                  <span>LINE channel access token, channel secret และ user/group ID ของแต่ละแผนก</span>
+                </div>
+              </div>
+            </section>
+          </div>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Notification Log</h2>
+            </div>
+            <div class="notification-log" id="notificationLog"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="bulkDeleteModal" aria-hidden="true">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="bulkDeleteTitle">
+        <div class="panel-header">
+          <div>
+            <h2 id="bulkDeleteTitle">เลือกรายการที่ต้องการลบ</h2>
+            <span class="muted">ลบเฉพาะรายการที่เลือกจาก backend local</span>
+          </div>
+          <button class="icon-button" id="closeBulkDeleteBtn" title="ปิด">×</button>
+        </div>
+        <div class="bulk-toolbar">
+          <label><input type="checkbox" id="selectAllJobs" /> เลือกทั้งหมด</label>
+          <span class="muted" id="selectedCount">เลือก 0 รายการ</span>
+        </div>
+        <div class="bulk-list" id="bulkDeleteList"></div>
+        <div class="form-actions">
+          <button class="ghost-button" id="cancelBulkDeleteBtn">ยกเลิก</button>
+          <button class="ghost-button danger-button" id="confirmBulkDeleteBtn">ลบรายการที่เลือก</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="designReplyModal" aria-hidden="true">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="designReplyTitle">
+        <div class="panel-header">
+          <div>
+            <h2 id="designReplyTitle">ฝ่ายผลิตตอบกลับฝ่ายขาย</h2>
+            <span class="muted" id="designReplyJobLabel">แนบข้อมูลถอดแบบหรือพิมพ์ข้อความเพื่อให้ฝ่ายขายออก SO</span>
+          </div>
+          <button class="icon-button" id="closeDesignReplyBtn" title="ปิด">×</button>
+        </div>
+        <form class="stack-form" id="designReplyForm">
+          <input type="hidden" name="jobId" id="designReplyJobId" />
+          <label>
+            ข้อความตอบกลับ
+            <textarea name="designMessage" rows="4" placeholder="เช่น ถอดแบบแล้ว ใช้วัสดุ..., lead time..., หมายเหตุสำหรับฝ่ายขาย"></textarea>
+          </label>
+          <label>
+            ไฟล์แนบจากฝ่ายผลิต
+            <input
+              type="file"
+              name="designFiles"
+              id="designReplyFiles"
+              multiple
+              accept=".pdf,.xls,.xlsx,.doc,.docx,.jpg,.jpeg,.png"
+            />
+            <div class="file-preview" id="designReplyPreview">ยังไม่ได้เลือกไฟล์</div>
+          </label>
+          <div class="form-actions">
+            <button type="button" class="ghost-button" id="cancelDesignReplyBtn">ยกเลิก</button>
+            <button type="submit" class="primary-button">ส่งกลับฝ่ายขาย</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="documentReadModal" aria-hidden="true">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="documentReadTitle">
+        <div class="panel-header">
+          <div>
+            <h2 id="documentReadTitle">รายละเอียดเอกสาร</h2>
+            <span class="muted" id="documentReadSubtitle">ระบบจะตรวจสิทธิ์ผู้เปิดอ่านจาก backend</span>
+          </div>
+          <button class="icon-button" id="closeDocumentReadBtn" title="ปิด">×</button>
+        </div>
+        <div class="document-detail" id="documentReadBody"></div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

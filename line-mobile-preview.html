@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LINE MES Mobile Preview</title>
+    <link rel="stylesheet" href="line-mobile-preview.css" />
+  </head>
+  <body>
+    <main class="preview-page">
+      <section class="context-panel">
+        <p class="eyebrow">LIFF / LINE App Preview</p>
+        <h1>จำลองหน้าระบบ MES ใน LINE</h1>
+        <p class="lead">หน้าจอนี้อ่านข้อมูลจริงจาก backend ปัจจุบัน แล้วจัดรูปแบบให้เหมือนผู้ใช้เปิดระบบจาก Rich Menu ใน LINE บนมือถือ</p>
+        <div class="context-actions">
+          <a class="ghost-button" href="/">กลับระบบหลัก</a>
+          <button class="primary-button" id="refreshBtn" type="button">โหลดข้อมูลใหม่</button>
+        </div>
+        <div class="note-list">
+          <div><strong>ฝ่ายขาย</strong><span>เห็นงานที่ต้องตอบลูกค้า ออก SO และติดตามงานด่วน</span></div>
+          <div><strong>ผลิต</strong><span>เห็นงานรอถอดแบบ งานกำลังผลิต และงานผลิตค้าง</span></div>
+          <div><strong>คลัง/ขนส่ง</strong><span>เห็นงานเช็คสต๊อก จองรถ และส่งมอบ</span></div>
+        </div>
+      </section>
+
+      <section class="phone-shell" aria-label="ตัวอย่างหน้าจอ LINE บนมือถือ">
+        <div class="phone-frame">
+          <header class="line-topbar">
+            <span class="back-mark">‹</span>
+            <div>
+              <strong>Office MES</strong>
+              <small>LIFF</small>
+            </div>
+            <span class="menu-mark">•••</span>
+          </header>
+
+          <section class="line-screen">
+            <div class="profile-strip">
+              <div class="avatar">MES</div>
+              <div>
+                <strong>ระบบติดตามงานผลิต</strong>
+                <span id="syncTime">กำลังโหลดข้อมูล...</span>
+              </div>
+            </div>
+
+            <div class="role-tabs" aria-label="เลือกมุมมองแผนก">
+              <button class="active" data-role="sales" type="button">ขาย</button>
+              <button data-role="production" type="button">ผลิต</button>
+              <button data-role="warehouse" type="button">คลัง</button>
+              <button data-role="logistics" type="button">ส่งของ</button>
+            </div>
+
+            <section class="summary-card">
+              <span id="roleLabel">ฝ่ายขาย</span>
+              <strong id="roleHeadline">งานที่ต้องติดตาม</strong>
+              <div class="summary-grid">
+                <div><small>งานรวม</small><b id="totalJobs">0</b></div>
+                <div><small>ต้องทำ</small><b id="todoJobs">0</b></div>
+                <div><small>ด่วน</small><b id="urgentJobs">0</b></div>
+              </div>
+            </section>
+
+            <section class="chat-section">
+              <div class="chat-date">วันนี้</div>
+              <div class="line-bubble system">
+                <strong id="bubbleTitle">สรุปงานล่าสุด</strong>
+                <span id="bubbleText">กำลังโหลด...</span>
+              </div>
+              <div class="job-stack" id="jobStack"></div>
+            </section>
+          </section>
+
+          <nav class="rich-menu" aria-label="LINE rich menu จำลอง">
+            <button data-command="today" type="button">งานวันนี้</button>
+            <button data-command="mine" type="button">งานของฉัน</button>
+            <button data-command="scan" type="button">ค้นหา INQ</button>
+            <button data-command="notify" type="button">แจ้งเตือน</button>
+          </nav>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="line-mobile-preview.js"></script>
+  </body>
+</html>

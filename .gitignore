@@ -1,0 +1,20 @@
+# Runtime data
+data/state.json
+uploads/*
+!uploads/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# Generated files and backups
+backups/
+exports/
+*.zip
+
+# Local test/work files
+test test.xlsx
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
