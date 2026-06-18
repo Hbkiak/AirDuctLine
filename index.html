@@ -402,6 +402,35 @@
       </section>
     </div>
 
+    <div class="modal-backdrop" id="stockReplyModal" aria-hidden="true">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="stockReplyTitle">
+        <div class="panel-header">
+          <div>
+            <h2 id="stockReplyTitle">คลังตอบกลับฝ่ายขาย</h2>
+            <span class="muted" id="stockReplyJobLabel">พิมพ์ผลเช็คสต็อกเพื่อให้ฝ่ายขายออก SO</span>
+          </div>
+          <button class="icon-button" id="closeStockReplyBtn" title="ปิด">×</button>
+        </div>
+        <form class="stack-form" id="stockReplyForm">
+          <input type="hidden" name="jobId" id="stockReplyJobId" />
+          <label>
+            ผลเช็คสต็อก
+            <textarea
+              name="stockMessage"
+              id="stockReplyMessage"
+              rows="4"
+              placeholder="เช่น สต็อกพร้อมส่งครบ / มีบางรายการรอเข้า / แนะนำจำนวนที่ออก SO ได้"
+              required
+            ></textarea>
+          </label>
+          <div class="form-actions">
+            <button type="button" class="ghost-button" id="cancelStockReplyBtn">ยกเลิก</button>
+            <button type="submit" class="primary-button">ส่งกลับฝ่ายขาย</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
     <div class="modal-backdrop" id="documentReadModal" aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="documentReadTitle">
         <div class="panel-header">

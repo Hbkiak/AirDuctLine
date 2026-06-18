@@ -14,6 +14,7 @@ const statusLabels = {
   QUOTING: "รอเสนอราคา",
   WAITING_CUSTOMER_CONFIRM: "รอลูกค้ายืนยัน",
   CONFIRMED: "ยืนยันแล้ว",
+  STOCK_REPLY: "ผลเช็คสต็อกจากคลัง",
   WAITING_SO: "รอฝ่ายขายออก SO",
   WAITING_PRODUCTION_PLAN: "รอวางแผนผลิต",
   IN_PRODUCTION: "กำลังผลิต",
@@ -120,7 +121,6 @@ function relevantJobs() {
 
 function nextActions(job) {
   const actions = {
-    WAITING_STOCK: [["QUOTING", "สต็อกพร้อม"]],
     QUOTING: [["WAITING_CUSTOMER_CONFIRM", "ส่งราคาแล้ว"]],
     WAITING_CUSTOMER_CONFIRM: [["CONFIRMED", "ลูกค้ายืนยัน"]],
     CONFIRMED: [["WAITING_SO", "ส่งฝ่ายขายออก SO"]],
@@ -141,6 +141,13 @@ function actionHtml(job) {
       <form class="task-actions" data-design-form="${escapeHtml(job.id)}">
         <textarea name="message" placeholder="ผลถอดแบบ / หมายเหตุฝ่ายผลิต"></textarea>
         <button class="action-button" type="submit">ส่งผลถอดแบบ</button>
+      </form>`;
+  }
+  if (job.status === "WAITING_STOCK") {
+    return `
+      <form class="task-actions" data-stock-form="${escapeHtml(job.id)}">
+        <textarea name="message" placeholder="ผลเช็คสต็อก / จำนวนพร้อมส่ง / หมายเหตุ"></textarea>
+        <button class="action-button" type="submit">ส่งผลเช็คสต็อก</button>
       </form>`;
   }
   if (job.status === "IN_PRODUCTION") {
@@ -290,6 +297,22 @@ async function sendDesignReply(form) {
   toast("ส่งผลถอดแบบแล้ว");
 }
 
+async function sendStockReply(form) {
+  const id = form.dataset.stockForm;
+  const message = String(new FormData(form).get("message") || "").trim();
+  if (!message) {
+    toast("กรุณาใส่ผลเช็คสต็อก");
+    return;
+  }
+  state = await api(`/api/jobs/${encodeURIComponent(id)}/stock-complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+  renderTasks();
+  toast("ส่งผลเช็คสต็อกแล้ว");
+}
+
 async function closeProduction(form) {
   const id = form.dataset.closeForm;
   const payload = new FormData(form);
@@ -356,6 +379,7 @@ document.getElementById("taskList").addEventListener("submit", async (event) => 
   event.preventDefault();
   try {
     if (event.target.matches("[data-design-form]")) await sendDesignReply(event.target);
+    if (event.target.matches("[data-stock-form]")) await sendStockReply(event.target);
     if (event.target.matches("[data-close-form]")) await closeProduction(event.target);
   } catch (error) {
     toast(error.message);

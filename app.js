@@ -14,6 +14,7 @@ const statusLabels = {
   WAITING_CUSTOMER_CONFIRM: "รอลูกค้ายืนยัน",
   CONFIRMED: "ยืนยันแล้ว",
   DESIGN_REPLY: "ผลถอดแบบจากฝ่ายผลิต",
+  STOCK_REPLY: "ผลเช็คสต็อกจากคลัง",
   WAITING_SO: "รอฝ่ายขายออก SO",
   WAITING_PRODUCTION_PLAN: "รอวางแผนผลิต",
   IN_PRODUCTION: "กำลังผลิต",
@@ -47,6 +48,7 @@ const departmentByStatus = {
   WAITING_CUSTOMER_CONFIRM: "ฝ่ายขาย",
   CONFIRMED: "Admin",
   DESIGN_REPLY: "ฝ่ายขาย",
+  STOCK_REPLY: "ฝ่ายขาย",
   WAITING_SO: "ฝ่ายขาย",
   WAITING_PRODUCTION_PLAN: "วางแผน",
   IN_PRODUCTION: "ผลิต",
@@ -76,6 +78,7 @@ const documentRouteByStatus = {
   WAITING_CUSTOMER_CONFIRM: ["ฝ่ายขาย", "ลูกค้า"],
   CONFIRMED: ["ลูกค้า/ฝ่ายขาย", "Admin"],
   DESIGN_REPLY: ["ถอดแบบ/ผลิต", "ฝ่ายขาย"],
+  STOCK_REPLY: ["คลัง", "ฝ่ายขาย"],
   WAITING_SO: ["ถอดแบบ/ผลิต หรือ คลัง", "ฝ่ายขาย"],
   WAITING_PRODUCTION_PLAN: ["ฝ่ายขาย", "วางแผน"],
   IN_PRODUCTION: ["วางแผน", "ผลิต"],
@@ -145,6 +148,16 @@ function dashboardEntries() {
         displayId: `${job.id}-ตอบกลับ`,
         entryStatus: "DESIGN_REPLY",
         entryCreatedAt: job.designReply.repliedAt,
+        job,
+        selectable: false,
+      });
+    }
+    if (job.stockReply) {
+      entries.push({
+        id: `${job.id}::stockReply`,
+        displayId: `${job.id}-ผลสต็อก`,
+        entryStatus: "STOCK_REPLY",
+        entryCreatedAt: job.stockReply.repliedAt,
         job,
         selectable: false,
       });
@@ -225,7 +238,7 @@ function statusBadge(status) {
   const label = statusLabels[status] || status;
   let cls = "badge";
   if (["WAITING_DESIGN", "WAITING_STOCK", "WAIT_BOOKING_TRUCK"].includes(status)) cls += " warn";
-  if (["DESIGN_REPLY", "PRODUCTION_DONE", "READY_TO_DELIVER", "DELIVERED", "CLOSED"].includes(status)) cls += " good";
+  if (["DESIGN_REPLY", "STOCK_REPLY", "PRODUCTION_DONE", "READY_TO_DELIVER", "DELIVERED", "CLOSED"].includes(status)) cls += " good";
   if (status === "CLOSED") cls += " complete";
   if (status === "WAIT_BOOKING_TRUCK") cls += " danger";
   return `<span class="${cls}">${escapeHtml(label)}</span>`;
@@ -244,6 +257,9 @@ function documentRoute(entry) {
   const status = effectiveStatus(entry);
   if (status === "WAITING_SO" && job.designReply) {
     return ["ถอดแบบ/ผลิต", "ฝ่ายขาย"];
+  }
+  if (status === "WAITING_SO" && job.stockReply) {
+    return ["คลัง", "ฝ่ายขาย"];
   }
   return documentRouteByStatus[status] || ["-", departmentByStatus[status] || "-"];
 }
@@ -265,6 +281,7 @@ function messageReader(entry) {
     WAITING_CUSTOMER_CONFIRM: salesReader,
     CONFIRMED: "Admin - Admin",
     DESIGN_REPLY: salesReader,
+    STOCK_REPLY: salesReader,
     WAITING_SO: salesReader,
     WAITING_PRODUCTION_PLAN: "วางแผน - คุณ แพ็ด",
     IN_PRODUCTION: "ผลิต - คุณ แป๊ะ",
@@ -655,6 +672,9 @@ function nextActionButtons(job) {
       if (job.status === "WAITING_DESIGN" && status === "WAITING_SO") {
         return `<button class="action-button" data-design-complete="${escapeHtml(job.id)}">${label}</button>`;
       }
+      if (job.status === "WAITING_STOCK" && status === "WAITING_SO") {
+        return `<button class="action-button" data-stock-complete="${escapeHtml(job.id)}">${label}</button>`;
+      }
       return `<button class="action-button" data-move="${escapeHtml(job.id)}" data-status="${status}">${label}</button>`;
     })
     .join("");
@@ -909,6 +929,22 @@ function closeDesignReply() {
   document.getElementById("designReplyModal").setAttribute("aria-hidden", "true");
 }
 
+function openStockReply(jobId) {
+  const job = state.jobs.find((item) => item.id === jobId);
+  if (!job) return;
+  document.getElementById("stockReplyJobId").value = jobId;
+  document.getElementById("stockReplyJobLabel").textContent = `${job.id} - ${job.customer}`;
+  document.getElementById("stockReplyForm").reset();
+  document.getElementById("stockReplyMessage").value = `เช็คสต็อกแล้ว พร้อมออก SO / จำนวนรวม ${totalQuantity(job)}`;
+  document.getElementById("stockReplyModal").classList.add("open");
+  document.getElementById("stockReplyModal").setAttribute("aria-hidden", "false");
+}
+
+function closeStockReply() {
+  document.getElementById("stockReplyModal").classList.remove("open");
+  document.getElementById("stockReplyModal").setAttribute("aria-hidden", "true");
+}
+
 function closeDocumentRead() {
   document.getElementById("documentReadModal").classList.remove("open");
   document.getElementById("documentReadModal").setAttribute("aria-hidden", "true");
@@ -958,6 +994,11 @@ async function openDocumentRead(jobId, entryStatus) {
           ? `<div class="full"><span class="muted">ข้อความตอบกลับจากฝ่ายผลิต</span><strong>${escapeHtml(job.designReply.message || "-")}</strong></div>`
           : ""
       }
+      ${
+        job.stockReply
+          ? `<div class="full"><span class="muted">ข้อความตอบกลับจากคลัง</span><strong>${escapeHtml(job.stockReply.message || "-")}</strong></div>`
+          : ""
+      }
     </section>
     <section class="detail-section">
       <h3>ไฟล์แนบ</h3>
@@ -995,6 +1036,25 @@ async function submitDesignReply(event) {
   setState(nextState);
   closeDesignReply();
   showToast(`${jobId} ส่งข้อมูลถอดแบบกลับฝ่ายขายแล้ว`);
+}
+
+async function submitStockReply(event) {
+  event.preventDefault();
+  const jobId = document.getElementById("stockReplyJobId").value;
+  const form = new FormData(event.currentTarget);
+  const message = String(form.get("stockMessage") || "").trim();
+  if (!message) {
+    showToast("กรุณาใส่ข้อความผลเช็คสต็อก");
+    return;
+  }
+  const nextState = await api(`/api/jobs/${encodeURIComponent(jobId)}/stock-complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+  setState(nextState);
+  closeStockReply();
+  showToast(`${jobId} ส่งผลเช็คสต็อกกลับฝ่ายขายแล้ว`);
 }
 
 function lineCommandReply(command) {
@@ -1221,6 +1281,18 @@ document.getElementById("cancelDesignReplyBtn").addEventListener("click", closeD
 document.getElementById("designReplyModal").addEventListener("click", (event) => {
   if (event.target.id === "designReplyModal") closeDesignReply();
 });
+document.getElementById("stockReplyForm").addEventListener("submit", async (event) => {
+  try {
+    await submitStockReply(event);
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+document.getElementById("closeStockReplyBtn").addEventListener("click", closeStockReply);
+document.getElementById("cancelStockReplyBtn").addEventListener("click", closeStockReply);
+document.getElementById("stockReplyModal").addEventListener("click", (event) => {
+  if (event.target.id === "stockReplyModal") closeStockReply();
+});
 document.getElementById("closeDocumentReadBtn").addEventListener("click", closeDocumentRead);
 document.getElementById("documentReadModal").addEventListener("click", (event) => {
   if (event.target.id === "documentReadModal") closeDocumentRead();
@@ -1253,6 +1325,9 @@ document.addEventListener("click", async (event) => {
     }
     if (target.matches("[data-design-complete]")) {
       openDesignReply(target.dataset.designComplete);
+    }
+    if (target.matches("[data-stock-complete]")) {
+      openStockReply(target.dataset.stockComplete);
     }
     if (target.matches("[data-read]")) {
       await openDocumentRead(target.dataset.read, target.dataset.entryStatus);

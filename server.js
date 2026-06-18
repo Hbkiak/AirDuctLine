@@ -22,6 +22,7 @@ const statusLabels = {
   QUOTING: "รอเสนอราคา",
   WAITING_CUSTOMER_CONFIRM: "รอลูกค้ายืนยัน",
   CONFIRMED: "ยืนยันแล้ว",
+  STOCK_REPLY: "ผลเช็คสต็อกจากคลัง",
   WAITING_SO: "รอฝ่ายขายออก SO",
   WAITING_PRODUCTION_PLAN: "รอวางแผนผลิต",
   IN_PRODUCTION: "กำลังผลิต",
@@ -336,6 +337,7 @@ function readTarget(job, status = job.status) {
     WAITING_CUSTOMER_CONFIRM: salesTarget,
     CONFIRMED: { role: "admin", name: "Admin" },
     DESIGN_REPLY: salesTarget,
+    STOCK_REPLY: salesTarget,
     WAITING_SO: salesTarget,
     WAITING_PRODUCTION_PLAN: { role: "planning", name: "คุณ แพ็ด" },
     IN_PRODUCTION: { role: "production", name: "คุณ แป๊ะ" },
@@ -654,6 +656,28 @@ async function completeDesign(req, res, id) {
   json(res, 200, state);
 }
 
+async function completeStock(req, res, id) {
+  const { message } = await readJson(req);
+  const state = await readState();
+  const user = requireCurrentUser(req, res, state);
+  if (!user) return;
+  if (!["warehouse", "admin"].includes(user.role)) return error(res, 403, "ส่งผลเช็คสต็อกได้เฉพาะคลังหรือ Admin");
+  const job = state.jobs.find((item) => item.id === id);
+  if (!job) return error(res, 404, "Job not found");
+  const replyMessage = String(message || "").trim();
+  if (!replyMessage) return error(res, 400, "กรุณาใส่ข้อความผลเช็คสต็อก");
+
+  job.status = "WAITING_SO";
+  job.stockReply = {
+    message: replyMessage,
+    repliedAt: new Date().toISOString(),
+  };
+  recordActivity(state, user, "stock_reply", job, replyMessage);
+  pushLine(state, `ฝ่ายขาย - ${job.salesOwner}: ${job.id} คลังเช็คสต็อกเสร็จแล้ว กรุณาออก SO / Sales Order. ข้อความ: ${replyMessage}`);
+  await writeState(state);
+  json(res, 200, state);
+}
+
 async function deleteJob(req, res, id) {
   const state = await readState();
   const user = requireCurrentUser(req, res, state);
@@ -798,6 +822,9 @@ async function handleApi(req, res, pathname) {
 
   const designMatch = pathname.match(/^\/api\/jobs\/([^/]+)\/design-complete$/);
   if (req.method === "POST" && designMatch) return completeDesign(req, res, decodeURIComponent(designMatch[1]));
+
+  const stockMatch = pathname.match(/^\/api\/jobs\/([^/]+)\/stock-complete$/);
+  if (req.method === "POST" && stockMatch) return completeStock(req, res, decodeURIComponent(stockMatch[1]));
 
   const readMatch = pathname.match(/^\/api\/jobs\/([^/]+)\/read$/);
   if (req.method === "POST" && readMatch) return readJob(req, res, decodeURIComponent(readMatch[1]));
