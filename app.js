@@ -686,10 +686,13 @@ function renderWorkOrders() {
       .join("") || `<div class="work-order"><strong>ยังไม่มี SO/WO</strong><span>เมื่องานยืนยันแล้วจะแสดงที่นี่</span></div>`;
 
   const select = document.getElementById("productionJob");
-  select.innerHTML = state.jobs
-    .filter((job) => job.status === "IN_PRODUCTION")
-    .map((job) => `<option value="${escapeHtml(job.id)}">${escapeHtml(job.woNo || job.id)} - ${escapeHtml(job.customer)}</option>`)
-    .join("");
+  const submitButton = document.querySelector("#productionForm button[type='submit']");
+  const activeJobs = state.jobs.filter((job) => job.status === "IN_PRODUCTION");
+  select.disabled = activeJobs.length === 0;
+  if (submitButton) submitButton.disabled = activeJobs.length === 0;
+  select.innerHTML = activeJobs.length
+    ? activeJobs.map((job) => `<option value="${escapeHtml(job.id)}">${escapeHtml(job.woNo || job.id)} - ${escapeHtml(job.customer)}</option>`).join("")
+    : `<option value="">ไม่มีงานที่กำลังผลิต</option>`;
 }
 
 function renderDelivery() {
