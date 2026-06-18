@@ -162,6 +162,25 @@ h2 {
   min-width: 120px;
 }
 
+.session-source {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: var(--muted);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.session-source.line {
+  border-color: #bbf7d0;
+  color: var(--green-dark);
+  background: #f0fdf4;
+}
+
 .permission-denied {
   color: var(--red);
   font-weight: 700;
@@ -402,6 +421,24 @@ tr.entry-reply-row td {
   border-bottom-color: #d8e8f8;
 }
 
+tr.inactive-row {
+  background: #f8fafc;
+}
+
+tr.inactive-row td,
+tr.inactive-row strong,
+tr.inactive-row span {
+  color: #667085;
+}
+
+.line-id {
+  display: inline-block;
+  max-width: 220px;
+  overflow-wrap: anywhere;
+  font-family: Consolas, "Segoe UI", sans-serif;
+  font-size: 12px;
+}
+
 .alert-list,
 .delivery-list,
 .work-order-list,
@@ -606,6 +643,28 @@ pre {
   padding: 18px;
   background: #fff;
   box-shadow: var(--shadow);
+}
+
+.session-modal {
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.68);
+}
+
+.session-card {
+  width: min(460px, 100%);
+}
+
+.session-card .panel-header {
+  align-items: flex-start;
+}
+
+.session-card form {
+  margin-top: 18px;
+}
+
+body.session-locked .app-shell {
+  filter: blur(1px);
+  pointer-events: none;
 }
 
 .document-detail {

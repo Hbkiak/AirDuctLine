@@ -1,4 +1,10 @@
 const today = new Date("2026-06-02T09:00:00+07:00");
+const backendOrigin = "http://xnb-127:8765";
+
+if (window.location.protocol === "file:") {
+  window.location.replace(backendOrigin);
+  throw new Error("Office MES requires the backend URL. Redirecting to backend.");
+}
 
 const statusLabels = {
   NEW_INQUIRY: "รับเรื่องใหม่",
@@ -103,17 +109,19 @@ const workflowGroups = [
 let state = { counters: {}, jobs: [], notifications: [], users: [], activityLog: [] };
 const dashboardSelectedIds = new Set();
 const userStorageKey = "officeMesUser.v1";
+const sessionStorageKey = "officeMesSession.v1";
+let session = { token: window.localStorage.getItem(sessionStorageKey) || "", user: null, source: "" };
 
 function currentRole() {
   return document.getElementById("roleSelect")?.value || "sales";
 }
 
 function currentUserId() {
-  return document.getElementById("userSelect")?.value || "";
+  return session.user?.id || document.getElementById("userSelect")?.value || "";
 }
 
 function currentUser() {
-  return state.users.find((user) => user.id === currentUserId()) || state.users[0] || null;
+  return session.user || state.users.find((user) => user.id === currentUserId()) || state.users[0] || null;
 }
 
 function canCreateJob() {
@@ -181,7 +189,7 @@ function isComplete(entry) {
 
 async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
-  if (currentUserId()) headers.set("X-User-Id", currentUserId());
+  if (session.token) headers.set("X-Session-Token", session.token);
   headers.set("X-User-Role", currentRole());
   const response = await fetch(path, { ...options, headers });
   if (!response.ok) {
@@ -309,7 +317,10 @@ function formatCreatedDateTime(entry) {
 
 function renderSalesOwners() {
   const select = document.getElementById("salesOwnerSelect");
-  select.innerHTML = salesOwners.map((owner) => `<option>${escapeHtml(owner)}</option>`).join("");
+  const owners = state.users?.length
+    ? state.users.filter((user) => user.role === "sales" && user.active !== false).map((user) => user.name)
+    : salesOwners;
+  select.innerHTML = owners.map((owner) => `<option>${escapeHtml(owner)}</option>`).join("");
 }
 
 function roleLabel(role) {
@@ -323,16 +334,142 @@ function roleLabel(role) {
   }[role] || role;
 }
 
+function departmentForRole(role) {
+  return {
+    sales: "ฝ่ายขาย",
+    production: "ถอดแบบ/ผลิต",
+    planning: "วางแผน",
+    warehouse: "คลัง",
+    logistics: "ส่งของ",
+    admin: "Admin",
+  }[role] || "";
+}
+
+function renderLoginUsers() {
+  const select = document.getElementById("loginUserSelect");
+  if (!select || !state.users.length) return;
+  const saved = session.user?.id || window.localStorage.getItem(userStorageKey) || state.users[0]?.id || "";
+  select.innerHTML = state.users
+    .filter((user) => user.active !== false)
+    .map((user) => `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name)} - ${escapeHtml(roleLabel(user.role))}</option>`)
+    .join("");
+  if (saved && state.users.some((user) => user.id === saved)) select.value = saved;
+}
+
+function showLoginModal() {
+  document.body.classList.add("session-locked");
+  const modal = document.getElementById("loginModal");
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  renderLoginUsers();
+}
+
+function hideLoginModal() {
+  document.body.classList.remove("session-locked");
+  const modal = document.getElementById("loginModal");
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+}
+
+function applySession(nextSession) {
+  session = { ...session, ...nextSession };
+  if (session.token) {
+    window.localStorage.setItem(sessionStorageKey, session.token);
+  } else {
+    window.localStorage.removeItem(sessionStorageKey);
+  }
+  if (session.user?.id) window.localStorage.setItem(userStorageKey, session.user.id);
+  renderUsers();
+  renderLoginUsers();
+  if (session.user) {
+    hideLoginModal();
+  } else {
+    showLoginModal();
+  }
+}
+
 function renderUsers() {
   const select = document.getElementById("userSelect");
   if (!select || !state.users.length) return;
-  const saved = window.localStorage.getItem(userStorageKey);
+  const saved = session.user?.id || window.localStorage.getItem(userStorageKey);
   select.innerHTML = state.users
+    .filter((user) => user.active !== false || user.id === session.user?.id)
     .map((user) => `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name)} - ${escapeHtml(roleLabel(user.role))}</option>`)
     .join("");
   if (saved && state.users.some((user) => user.id === saved)) select.value = saved;
   const user = currentUser();
   if (user) document.getElementById("roleSelect").value = user.role;
+  select.disabled = !!session.user;
+}
+
+function renderAdminUsers() {
+  const table = document.getElementById("adminUsersTable");
+  if (!table) return;
+  if (currentUser()?.role !== "admin") {
+    table.innerHTML = `<tr><td colspan="6" class="muted">หน้านี้ใช้งานได้เฉพาะ Admin</td></tr>`;
+    return;
+  }
+  table.innerHTML = state.users
+    .map(
+      (user) => `
+        <tr class="${user.active === false ? "inactive-row" : ""}">
+          <td><strong>${escapeHtml(user.name)}</strong><br><span class="muted">${escapeHtml(user.id)}</span></td>
+          <td>${escapeHtml(roleLabel(user.role))}</td>
+          <td>${escapeHtml(user.department || "-")}</td>
+          <td><span class="line-id">${escapeHtml(user.lineUserId || "ยังไม่ผูก LINE")}</span></td>
+          <td><span class="badge ${user.active === false ? "danger" : "good"}">${user.active === false ? "ปิดใช้งาน" : "เปิดใช้งาน"}</span></td>
+          <td><button class="action-button" data-edit-user="${escapeHtml(user.id)}">แก้ไข</button></td>
+        </tr>`
+    )
+    .join("");
+}
+
+function resetAdminUserForm() {
+  const form = document.getElementById("adminUserForm");
+  if (!form) return;
+  form.reset();
+  document.getElementById("adminUserId").value = "";
+  document.getElementById("adminUserDepartment").value = departmentForRole(document.getElementById("adminUserRole").value);
+  document.getElementById("adminUserActive").checked = true;
+  document.getElementById("adminUserFormTitle").textContent = "เพิ่มผู้ใช้";
+}
+
+function editAdminUser(userId) {
+  const user = state.users.find((item) => item.id === userId);
+  if (!user) return;
+  document.getElementById("adminUserId").value = user.id;
+  document.getElementById("adminUserName").value = user.name || "";
+  document.getElementById("adminUserRole").value = user.role || "sales";
+  document.getElementById("adminUserDepartment").value = user.department || departmentForRole(user.role);
+  document.getElementById("adminLineUserId").value = user.lineUserId || "";
+  document.getElementById("adminUserActive").checked = user.active !== false;
+  document.getElementById("adminUserFormTitle").textContent = `แก้ไข ${user.name}`;
+}
+
+async function submitAdminUser(event) {
+  event.preventDefault();
+  if (currentUser()?.role !== "admin") {
+    showToast("จัดการผู้ใช้ได้เฉพาะ Admin");
+    return;
+  }
+  const form = new FormData(event.currentTarget);
+  const id = String(form.get("id") || "");
+  const payload = {
+    name: String(form.get("name") || "").trim(),
+    role: String(form.get("role") || "sales"),
+    department: String(form.get("department") || "").trim(),
+    lineUserId: String(form.get("lineUserId") || "").trim(),
+    active: form.get("active") === "on",
+  };
+  const result = await api(id ? `/api/users/${encodeURIComponent(id)}` : "/api/users", {
+    method: id ? "PATCH" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  state.users = result.users;
+  resetAdminUserForm();
+  renderAll();
+  showToast(id ? "บันทึกผู้ใช้แล้ว" : "เพิ่มผู้ใช้แล้ว");
 }
 
 function applyRolePermissions() {
@@ -340,6 +477,9 @@ function applyRolePermissions() {
   const createButton = document.querySelector("[data-open-create]");
   const submitButton = document.getElementById("createSubmitBtn");
   const permissionText = document.getElementById("createPermissionText");
+  const logoutButton = document.getElementById("logoutBtn");
+  const adminNav = document.querySelector('[data-view="admin"]');
+  const sessionSourceText = document.getElementById("sessionSourceText");
 
   if (createButton) {
     createButton.disabled = !allowed;
@@ -354,6 +494,22 @@ function applyRolePermissions() {
       ? `เข้าสู่ระบบเป็น ${currentUser()?.name || "ฝ่ายขาย"} สามารถสร้างงานใหม่ได้`
       : `เข้าสู่ระบบเป็น ${currentUser()?.name || "-"} สร้างงานใหม่ได้เฉพาะฝ่ายขาย`;
     permissionText.classList.toggle("permission-denied", !allowed);
+  }
+  if (logoutButton) {
+    logoutButton.disabled = !session.user;
+    logoutButton.textContent = session.user
+      ? session.source === "line"
+        ? `LINE: ${session.user.name}`
+        : `ออกจากระบบ (${session.user.name})`
+      : "ออกจากระบบ";
+  }
+  if (sessionSourceText) {
+    sessionSourceText.textContent = session.source === "line" ? "LINE Auto" : "Browser";
+    sessionSourceText.classList.toggle("line", session.source === "line");
+  }
+  if (adminNav) {
+    adminNav.disabled = currentUser()?.role !== "admin";
+    adminNav.title = currentUser()?.role === "admin" ? "Admin" : "ใช้งานได้เฉพาะ Admin";
   }
 }
 
@@ -486,7 +642,7 @@ function nextActionButtons(job) {
     QUOTING: [["WAITING_CUSTOMER_CONFIRM", "ส่งใบเสนอราคา"]],
     WAITING_CUSTOMER_CONFIRM: [["CONFIRMED", "ลูกค้ายืนยัน"]],
     CONFIRMED: [["WAITING_SO", "ส่ง Admin"]],
-    WAITING_SO: [["WAITING_PRODUCTION_PLAN", "ออก SO แล้ว"]],
+    WAITING_SO: [["WAITING_PRODUCTION_PLAN", "สร้าง SO"]],
     WAITING_PRODUCTION_PLAN: [["IN_PRODUCTION", "สร้าง WO"]],
     PRODUCTION_DONE: [["WAITING_DELIVERY_CONFIRM", "รอยืนยันส่ง"]],
     WAITING_DELIVERY_CONFIRM: [["WAIT_BOOKING_TRUCK", "ต้องจองรถ"], ["READY_TO_DELIVER", "ลูกค้ารับเอง"]],
@@ -667,6 +823,8 @@ function formatDate(dateText) {
 
 function renderAll() {
   renderUsers();
+  renderLoginUsers();
+  renderSalesOwners();
   applyRolePermissions();
   renderStats();
   renderStatusFilter();
@@ -676,6 +834,7 @@ function renderAll() {
   renderWorkOrders();
   renderDelivery();
   renderNotifications();
+  renderAdminUsers();
 }
 
 function showToast(message) {
@@ -846,8 +1005,82 @@ function lineCommandReply(command) {
   return `[${command}]\n${lines.join("\n") || "ไม่พบงาน"}`;
 }
 
+async function loginUser(userId) {
+  const result = await api("/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId }),
+  });
+  applySession({ token: result.token, user: result.user, source: "browser" });
+  applyRolePermissions();
+  renderJobsTable();
+  showToast(`เข้าสู่ระบบเป็น ${result.user.name}`);
+}
+
+async function detectLineIdentity() {
+  const params = new URLSearchParams(window.location.search);
+  const lineUserId = params.get("lineUserId");
+  if (lineUserId) {
+    return {
+      lineUserId,
+      displayName: params.get("lineDisplayName") || "",
+    };
+  }
+  if (window.liff?.isLoggedIn?.()) {
+    const profile = await window.liff.getProfile();
+    return {
+      lineUserId: profile.userId,
+      displayName: profile.displayName || "",
+    };
+  }
+  return null;
+}
+
+async function loginWithLine(identity) {
+  const result = await api("/api/line/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(identity),
+  });
+  applySession({ token: result.token, user: result.user, source: "line" });
+  applyRolePermissions();
+  renderJobsTable();
+}
+
+async function restoreSession() {
+  if (!session.token) {
+    applySession({ token: "", user: null });
+    return;
+  }
+  try {
+    const result = await api("/api/session");
+    applySession({ token: session.token, user: result.user, source: result.session?.source || "browser" });
+  } catch {
+    applySession({ token: "", user: null, source: "" });
+  }
+}
+
+async function logoutUser() {
+  if (session.source === "line") {
+    showToast("เมื่อใช้งานผ่าน LINE ระบบจะระบุตัวตนอัตโนมัติจากบัญชี LINE");
+    return;
+  }
+  try {
+    if (session.token) await api("/api/logout", { method: "POST" });
+  } finally {
+    applySession({ token: "", user: null, source: "" });
+    applyRolePermissions();
+    renderJobsTable();
+    showToast("ออกจากระบบแล้ว");
+  }
+}
+
 document.querySelectorAll(".nav-item").forEach((button) => {
   button.addEventListener("click", async () => {
+    if (button.dataset.view === "admin" && currentUser()?.role !== "admin") {
+      showToast("หน้านี้ใช้งานได้เฉพาะ Admin");
+      return;
+    }
     document.querySelectorAll(".nav-item").forEach((item) => item.classList.remove("active"));
     document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
     button.classList.add("active");
@@ -861,6 +1094,42 @@ document.querySelectorAll(".nav-item").forEach((button) => {
       }
     }
   });
+});
+
+document.getElementById("loginForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    await loginUser(new FormData(event.currentTarget).get("userId"));
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  try {
+    await logoutUser();
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+document.getElementById("adminUserRole").addEventListener("change", (event) => {
+  document.getElementById("adminUserDepartment").value = departmentForRole(event.target.value);
+});
+
+document.getElementById("adminUserResetBtn").addEventListener("click", resetAdminUserForm);
+
+document.getElementById("adminUserForm").addEventListener("submit", async (event) => {
+  try {
+    await submitAdminUser(event);
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+document.getElementById("adminUsersTable").addEventListener("click", (event) => {
+  const target = event.target;
+  if (target.matches("[data-edit-user]")) editAdminUser(target.dataset.editUser);
 });
 
 document.getElementById("userSelect").addEventListener("change", (event) => {
@@ -1048,8 +1317,20 @@ async function init() {
   renderSalesOwners();
   try {
     setState(await api("/api/state"));
+    const lineIdentity = await detectLineIdentity();
+    if (lineIdentity) {
+      try {
+        await loginWithLine(lineIdentity);
+      } catch (error) {
+        showToast(error.message);
+        showLoginModal();
+      }
+      return;
+    }
+    await restoreSession();
   } catch (error) {
     showToast(error.message);
+    showLoginModal();
   }
 }
 

@@ -4,6 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Office MES Prototype</title>
+    <script>
+      if (window.location.protocol === "file:") {
+        window.location.replace("http://xnb-127:8765/");
+      }
+    </script>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -23,6 +28,7 @@
           <button class="nav-item" data-view="production">Production</button>
           <button class="nav-item" data-view="delivery">Delivery</button>
           <button class="nav-item" data-view="line">LINE</button>
+          <button class="nav-item" data-view="admin">Admin</button>
         </nav>
       </aside>
 
@@ -37,6 +43,7 @@
               ผู้ใช้
               <select id="userSelect" aria-label="เลือกผู้ใช้งาน"></select>
             </label>
+            <span class="session-source" id="sessionSourceText">Browser</span>
             <label class="role-switch">
               บทบาท
               <select id="roleSelect" aria-label="เลือกบทบาทผู้ใช้งาน" disabled>
@@ -48,6 +55,7 @@
                 <option value="admin">Admin</option>
               </select>
             </label>
+            <button class="ghost-button" id="logoutBtn" type="button">ออกจากระบบ</button>
             <button class="icon-button" id="seedBtn" title="เพิ่มงานตัวอย่าง">+</button>
             <button class="ghost-button danger-button" id="bulkDeleteBtn">ลบแบบเลือก</button>
             <button class="primary-button" data-open-create>สร้างงานใหม่</button>
@@ -266,6 +274,73 @@
             <div class="notification-log" id="notificationLog"></div>
           </section>
         </section>
+
+        <section class="view" id="admin">
+          <div class="content-grid">
+            <section class="panel wide">
+              <div class="panel-header">
+                <div>
+                  <h2>จัดการผู้ใช้และสิทธิ์</h2>
+                  <span class="muted">กำหนดผู้ใช้งาน แผนก บทบาท และ LINE User ID สำหรับ LIFF ในอนาคต</span>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ผู้ใช้</th>
+                      <th>บทบาท</th>
+                      <th>แผนก</th>
+                      <th>LINE User ID</th>
+                      <th>สถานะ</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminUsersTable"></tbody>
+                </table>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <h2 id="adminUserFormTitle">เพิ่มผู้ใช้</h2>
+              </div>
+              <form class="stack-form" id="adminUserForm">
+                <input type="hidden" id="adminUserId" name="id" />
+                <label>
+                  ชื่อผู้ใช้
+                  <input name="name" id="adminUserName" required placeholder="เช่น คุณ ธนา" />
+                </label>
+                <label>
+                  บทบาท
+                  <select name="role" id="adminUserRole" required>
+                    <option value="sales">ฝ่ายขาย</option>
+                    <option value="production">ฝ่ายผลิต</option>
+                    <option value="planning">วางแผน</option>
+                    <option value="warehouse">คลัง</option>
+                    <option value="logistics">ส่งของ</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </label>
+                <label>
+                  แผนก
+                  <input name="department" id="adminUserDepartment" required />
+                </label>
+                <label>
+                  LINE User ID
+                  <input name="lineUserId" id="adminLineUserId" placeholder="เช่น Uxxxxxxxx จาก LINE/LIFF" />
+                </label>
+                <label class="check-row">
+                  <input type="checkbox" name="active" id="adminUserActive" checked />
+                  เปิดใช้งาน
+                </label>
+                <div class="form-actions">
+                  <button type="button" class="ghost-button" id="adminUserResetBtn">ล้างฟอร์ม</button>
+                  <button type="submit" class="primary-button">บันทึกผู้ใช้</button>
+                </div>
+              </form>
+            </section>
+          </div>
+        </section>
       </main>
     </div>
 
@@ -334,6 +409,24 @@
           <button class="icon-button" id="closeDocumentReadBtn" title="ปิด">×</button>
         </div>
         <div class="document-detail" id="documentReadBody"></div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop session-modal open" id="loginModal" aria-hidden="false">
+      <section class="modal session-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+        <div class="panel-header">
+          <div>
+            <h2 id="loginTitle">เข้าสู่ระบบ Office MES</h2>
+            <span class="muted">สำหรับ browser ภายในให้เลือกชื่อผู้ใช้งาน ส่วนเมื่อเปิดผ่าน LINE/LIFF ระบบจะรู้ตัวตนจาก LINE อัตโนมัติ</span>
+          </div>
+        </div>
+        <form class="stack-form" id="loginForm">
+          <label>
+            ผู้ใช้งาน
+            <select id="loginUserSelect" name="userId" required></select>
+          </label>
+          <button type="submit" class="primary-button">เข้าสู่ระบบ</button>
+        </form>
       </section>
     </div>
 

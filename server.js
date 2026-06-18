@@ -83,6 +83,7 @@ const defaultUsers = [
 const defaultState = {
   counters: {},
   users: defaultUsers,
+  sessions: [],
   activityLog: [],
   jobs: [
     {
@@ -186,9 +187,8 @@ function error(res, status, message) {
 }
 
 function requireSales(req, res, state) {
-  const user = currentUser(req, state);
+  const user = sessionToken(req) ? currentUser(req, state) : null;
   if (user?.role === "sales" || user?.role === "admin") return user;
-  if (!user && (req.headers["x-user-role"] || "").toLowerCase() === "sales") return { id: "legacy-sales", name: "ฝ่ายขาย", role: "sales" };
   error(res, 403, "สร้างงานใหม่ได้เฉพาะฝ่ายขาย");
   return null;
 }
@@ -199,7 +199,12 @@ function normalizeState(state) {
   defaultUsers.forEach((user) => {
     if (!userById.has(user.id)) userById.set(user.id, user);
   });
-  state.users = [...userById.values()];
+  state.users = [...userById.values()].map((user) => ({
+    lineUserId: "",
+    active: true,
+    ...user,
+  }));
+  state.sessions = Array.isArray(state.sessions) ? state.sessions : [];
   state.activityLog = Array.isArray(state.activityLog) ? state.activityLog : [];
   state.notifications = Array.isArray(state.notifications) ? state.notifications : [];
   state.jobs = Array.isArray(state.jobs) ? state.jobs : [];
@@ -210,13 +215,113 @@ function normalizeState(state) {
   return state;
 }
 
+function createSession(state, user, source = "browser", metadata = {}) {
+  const token = crypto.randomBytes(32).toString("hex");
+  state.sessions.unshift({
+    token,
+    source,
+    userId: user.id,
+    userName: user.name,
+    role: user.role,
+    lineUserId: metadata.lineUserId || user.lineUserId || "",
+    lineDisplayName: metadata.lineDisplayName || "",
+    startedAt: new Date().toISOString(),
+  });
+  state.sessions = state.sessions.slice(0, 200);
+  recordActivity(state, user, "login", null, `${source} login`);
+  return token;
+}
+
+function sessionToken(req) {
+  const auth = req.headers.authorization || "";
+  if (auth.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
+  return req.headers["x-session-token"] || "";
+}
+
 function currentUser(req, state) {
+  const token = sessionToken(req);
+  if (token) {
+    const session = (state.sessions || []).find((item) => item.token === token && !item.endedAt);
+    if (session) {
+      const sessionUser = state.users.find((item) => item.id === session.userId);
+      if (sessionUser) return sessionUser;
+    }
+  }
   const userId = req.headers["x-user-id"];
   const user = state.users.find((item) => item.id === userId);
   if (user) return user;
   const role = (req.headers["x-user-role"] || "").toLowerCase();
   if (role) return state.users.find((item) => item.role === role) || null;
   return null;
+}
+
+async function login(req, res) {
+  const { userId } = await readJson(req);
+  const state = await readState();
+  const user = state.users.find((item) => item.id === userId && item.active !== false);
+  if (!user) return error(res, 404, "User not found");
+  const token = createSession(state, user, "browser");
+  await writeState(state);
+  json(res, 200, { token, user });
+}
+
+async function lineSession(req, res) {
+  const { lineUserId, displayName } = await readJson(req);
+  const normalizedLineUserId = String(lineUserId || "").trim();
+  if (!normalizedLineUserId) return error(res, 400, "Missing LINE user id");
+  const state = await readState();
+  const user = state.users.find((item) => item.active !== false && item.lineUserId === normalizedLineUserId);
+  if (!user) {
+    return error(res, 403, "LINE user นี้ยังไม่ได้ผูกกับผู้ใช้ในระบบ Office MES");
+  }
+  const token = createSession(state, user, "line", {
+    lineUserId: normalizedLineUserId,
+    lineDisplayName: String(displayName || ""),
+  });
+  await writeState(state);
+  json(res, 200, { token, user });
+}
+
+async function linkLineUser(req, res, id) {
+  const state = await readState();
+  const admin = requireCurrentUser(req, res, state);
+  if (!admin) return;
+  if (admin.role !== "admin") return error(res, 403, "ผูก LINE user ได้เฉพาะ Admin");
+  const { lineUserId } = await readJson(req);
+  const normalizedLineUserId = String(lineUserId || "").trim();
+  const user = state.users.find((item) => item.id === id);
+  if (!user) return error(res, 404, "User not found");
+  if (normalizedLineUserId) {
+    const duplicate = state.users.find((item) => item.id !== id && item.lineUserId === normalizedLineUserId);
+    if (duplicate) return error(res, 409, "LINE user id นี้ถูกผูกกับผู้ใช้อื่นแล้ว");
+  }
+  user.lineUserId = normalizedLineUserId;
+  recordActivity(state, admin, "link_line_user", null, `${user.name} -> ${normalizedLineUserId || "clear"}`);
+  await writeState(state);
+  json(res, 200, { user });
+}
+
+async function getSession(req, res) {
+  const state = await readState();
+  const token = sessionToken(req);
+  const session = (state.sessions || []).find((item) => item.token === token && !item.endedAt);
+  if (!session) return error(res, 401, "Session not found");
+  const user = state.users.find((item) => item.id === session.userId);
+  if (!user) return error(res, 401, "User not found");
+  json(res, 200, { user, session: { startedAt: session.startedAt, source: session.source || "browser" } });
+}
+
+async function logout(req, res) {
+  const state = await readState();
+  const token = sessionToken(req);
+  const session = (state.sessions || []).find((item) => item.token === token && !item.endedAt);
+  if (session) {
+    session.endedAt = new Date().toISOString();
+    const user = state.users.find((item) => item.id === session.userId);
+    recordActivity(state, user, "logout", null, "browser logout");
+    await writeState(state);
+  }
+  json(res, 200, { ok: true });
 }
 
 function readTarget(job, status = job.status) {
@@ -251,9 +356,17 @@ function canReadJob(user, job, status = job.status) {
 }
 
 function requireCurrentUser(req, res, state) {
-  const user = currentUser(req, state);
+  const user = sessionToken(req) ? currentUser(req, state) : null;
   if (user) return user;
   error(res, 401, "กรุณาเข้าสู่ระบบก่อน");
+  return null;
+}
+
+function requireAdmin(req, res, state) {
+  const user = requireCurrentUser(req, res, state);
+  if (!user) return null;
+  if (user.role === "admin") return user;
+  error(res, 403, "จัดการผู้ใช้ได้เฉพาะ Admin");
   return null;
 }
 
@@ -271,6 +384,68 @@ function recordActivity(state, user, action, job, detail = "") {
   state.activityLog.unshift(item);
   state.activityLog = state.activityLog.slice(0, 500);
   return item;
+}
+
+function cleanUserInput(payload = {}, existing = {}) {
+  const role = String(payload.role || existing.role || "sales").trim();
+  const fallbackDepartment = {
+    sales: "ฝ่ายขาย",
+    production: "ถอดแบบ/ผลิต",
+    planning: "วางแผน",
+    warehouse: "คลัง",
+    logistics: "ขนส่ง",
+    admin: "Admin",
+  }[role] || "";
+  return {
+    name: String(payload.name || existing.name || "").trim(),
+    role,
+    department: String(payload.department || existing.department || fallbackDepartment).trim(),
+    lineUserId: String(payload.lineUserId ?? existing.lineUserId ?? "").trim(),
+    active: payload.active === undefined ? existing.active !== false : Boolean(payload.active),
+  };
+}
+
+function ensureUniqueLineUser(state, lineUserId, currentUserId = "") {
+  if (!lineUserId) return null;
+  return state.users.find((user) => user.id !== currentUserId && user.lineUserId === lineUserId) || null;
+}
+
+async function createUser(req, res) {
+  const payload = await readJson(req);
+  const state = await readState();
+  const admin = requireAdmin(req, res, state);
+  if (!admin) return;
+  const next = cleanUserInput(payload);
+  if (!next.name) return error(res, 400, "กรุณาระบุชื่อผู้ใช้");
+  const duplicate = ensureUniqueLineUser(state, next.lineUserId);
+  if (duplicate) return error(res, 409, "LINE user id นี้ถูกผูกกับผู้ใช้อื่นแล้ว");
+  const idBase = next.name.toLowerCase().replace(/[^a-z0-9ก-๙]+/gi, "-").replace(/^-+|-+$/g, "") || "user";
+  let id = `${next.role}-${idBase}`;
+  while (state.users.some((user) => user.id === id)) {
+    id = `${next.role}-${idBase}-${crypto.randomBytes(2).toString("hex")}`;
+  }
+  const user = { id, ...next };
+  state.users.push(user);
+  recordActivity(state, admin, "create_user", null, `${user.name} / ${user.role}`);
+  await writeState(state);
+  json(res, 201, { user, users: state.users });
+}
+
+async function updateUser(req, res, id) {
+  const payload = await readJson(req);
+  const state = await readState();
+  const admin = requireAdmin(req, res, state);
+  if (!admin) return;
+  const user = state.users.find((item) => item.id === id);
+  if (!user) return error(res, 404, "User not found");
+  const next = cleanUserInput(payload, user);
+  if (!next.name) return error(res, 400, "กรุณาระบุชื่อผู้ใช้");
+  const duplicate = ensureUniqueLineUser(state, next.lineUserId, id);
+  if (duplicate) return error(res, 409, "LINE user id นี้ถูกผูกกับผู้ใช้อื่นแล้ว");
+  Object.assign(user, next);
+  recordActivity(state, admin, "update_user", null, `${user.name} / ${user.role} / ${user.active ? "active" : "inactive"}`);
+  await writeState(state);
+  json(res, 200, { user, users: state.users });
 }
 
 function collectBody(req, limit = 25 * 1024 * 1024) {
@@ -599,6 +774,11 @@ async function handleApi(req, res, pathname) {
     const state = await readState();
     return json(res, 200, { users: state.users });
   }
+  if (req.method === "POST" && pathname === "/api/login") return login(req, res);
+  if (req.method === "POST" && pathname === "/api/line/session") return lineSession(req, res);
+  if (req.method === "GET" && pathname === "/api/session") return getSession(req, res);
+  if (req.method === "POST" && pathname === "/api/logout") return logout(req, res);
+  if (req.method === "POST" && pathname === "/api/users") return createUser(req, res);
   if (req.method === "POST" && pathname === "/api/jobs") return createJob(req, res);
   if (req.method === "POST" && pathname === "/api/jobs/bulk-delete") return bulkDelete(req, res);
   if (req.method === "POST" && pathname === "/api/jobs/seed") return seedJob(req, res);
@@ -612,6 +792,12 @@ async function handleApi(req, res, pathname) {
 
   const readMatch = pathname.match(/^\/api\/jobs\/([^/]+)\/read$/);
   if (req.method === "POST" && readMatch) return readJob(req, res, decodeURIComponent(readMatch[1]));
+
+  const lineLinkMatch = pathname.match(/^\/api\/users\/([^/]+)\/line-link$/);
+  if (req.method === "POST" && lineLinkMatch) return linkLineUser(req, res, decodeURIComponent(lineLinkMatch[1]));
+
+  const userMatch = pathname.match(/^\/api\/users\/([^/]+)$/);
+  if (req.method === "PATCH" && userMatch) return updateUser(req, res, decodeURIComponent(userMatch[1]));
 
   const deleteMatch = pathname.match(/^\/api\/jobs\/([^/]+)$/);
   if (req.method === "DELETE" && deleteMatch) return deleteJob(req, res, decodeURIComponent(deleteMatch[1]));
