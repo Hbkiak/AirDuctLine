@@ -237,7 +237,10 @@
             <section class="panel">
               <div class="panel-header">
                 <h2>LINE Command จำลอง</h2>
-                <a class="ghost-button" href="/line-mobile-preview.html" target="_blank" rel="noreferrer">เปิด Mobile Preview</a>
+                <div class="panel-tools">
+                  <a class="primary-button" href="/line.html" target="_blank" rel="noreferrer">เปิด LINE Pilot</a>
+                  <a class="ghost-button" href="/line-mobile-preview.html" target="_blank" rel="noreferrer">เปิด Mobile Preview</a>
+                </div>
               </div>
               <div class="command-box">
                 <button data-command="งานวันนี้">งานวันนี้</button>
@@ -253,16 +256,16 @@
               </div>
               <div class="alert-list">
                 <div class="alert">
-                  <strong>แจ้งเตือนอัตโนมัติ</strong>
-                  <span>เมื่อสถานะเปลี่ยน backend จะบันทึก log ไว้ก่อน และสามารถต่อ LINE push message ภายหลังได้</span>
+                  <strong>LINE Pilot พร้อมทดสอบ</strong>
+                  <span>เปิด /line.html จากมือถือหรือ LIFF เพื่อให้แต่ละแผนกเห็นงานของตัวเองและกด action สำคัญจากหน้าจอมือถือ</span>
                 </div>
                 <div class="alert">
-                  <strong>รับคำสั่งจาก LINE</strong>
-                  <span>ขั้นต่อไปคือเพิ่ม endpoint webhook สำหรับคำสั่ง เช่น "งานวันนี้", "งาน INQ...", "ปิดผลิต WO..."</span>
+                  <strong>ผูกตัวตนด้วย LINE User ID</strong>
+                  <span>Admin ใส่ LINE User ID ในหน้าจัดการผู้ใช้ แล้วเปิดลิงก์แบบ /line.html?lineUserId=Uxxxx เพื่อจำลอง LIFF login ได้ทันที</span>
                 </div>
                 <div class="alert">
-                  <strong>ข้อมูลที่ต้องเตรียม</strong>
-                  <span>LINE channel access token, channel secret และ user/group ID ของแต่ละแผนก</span>
+                  <strong>ก่อนใช้ LIFF จริง</strong>
+                  <span>ตั้งค่า HTTPS/domain, สร้าง LIFF app ใน LINE Developers, แล้วใส่ค่า LIFF_ID ให้ server ตอน start ระบบ</span>
                 </div>
               </div>
             </section>

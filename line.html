@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Office MES LINE Pilot</title>
+    <link rel="stylesheet" href="line.css" />
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" defer></script>
+    <script src="line.js" defer></script>
+  </head>
+  <body>
+    <main class="line-shell">
+      <header class="line-header">
+        <div>
+          <span class="eyebrow">Office MES</span>
+          <h1>LINE Pilot</h1>
+        </div>
+        <button class="ghost-button" id="refreshBtn" type="button">รีเฟรช</button>
+      </header>
+
+      <section class="status-card" id="sessionCard">
+        <div>
+          <span class="muted">สถานะ</span>
+          <strong id="sessionName">กำลังตรวจสอบผู้ใช้</strong>
+        </div>
+        <span class="pill" id="sessionSource">LINE</span>
+      </section>
+
+      <section class="panel" id="loginPanel" hidden>
+        <h2>ทดสอบใน Browser</h2>
+        <p class="muted">ใช้ส่วนนี้เฉพาะช่วง Pilot ก่อนต่อ LIFF จริง</p>
+        <form class="stack-form" id="browserLoginForm">
+          <label>
+            ผู้ใช้งาน
+            <select id="browserUserSelect" name="userId"></select>
+          </label>
+          <button class="primary-button" type="submit">เข้าใช้งาน</button>
+        </form>
+      </section>
+
+      <section class="panel warning" id="lineLinkPanel" hidden>
+        <h2>ยังไม่พบ LINE User ID ในระบบ</h2>
+        <p id="lineLinkText"></p>
+      </section>
+
+      <nav class="tabs" aria-label="งาน">
+        <button class="tab active" data-filter="mine" type="button">งานของฉัน</button>
+        <button class="tab" data-filter="urgent" type="button">ใกล้ส่ง</button>
+        <button class="tab" data-filter="all" type="button">ทั้งหมด</button>
+      </nav>
+
+      <section class="task-list" id="taskList">
+        <article class="task-card skeleton">กำลังโหลดงาน</article>
+      </section>
+
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </main>
+  </body>
+</html>

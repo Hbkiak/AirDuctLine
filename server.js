@@ -10,6 +10,8 @@ const host = process.env.HOST || "127.0.0.1";
 const dataDir = path.join(root, "data");
 const uploadDir = path.join(root, "uploads");
 const dbFile = path.join(dataDir, "state.json");
+const liffId = process.env.LIFF_ID || "";
+const lineAppUrl = process.env.LINE_APP_URL || "";
 
 const today = new Date("2026-06-02T09:00:00+07:00");
 
@@ -773,6 +775,13 @@ async function handleApi(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/users") {
     const state = await readState();
     return json(res, 200, { users: state.users });
+  }
+  if (req.method === "GET" && pathname === "/api/line/config") {
+    return json(res, 200, {
+      liffId,
+      appUrl: lineAppUrl,
+      pilotUrl: lineAppUrl ? `${lineAppUrl.replace(/\/$/, "")}/line.html` : "/line.html",
+    });
   }
   if (req.method === "POST" && pathname === "/api/login") return login(req, res);
   if (req.method === "POST" && pathname === "/api/line/session") return lineSession(req, res);

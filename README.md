@@ -44,6 +44,27 @@ To check service status:
 .\ops\status-office-mes.ps1
 ```
 
+## LINE Pilot
+
+Open the mobile-first LINE pilot page:
+
+```text
+http://localhost:8765/line.html
+```
+
+For local testing before LIFF is connected, simulate a LINE identity by adding a
+registered LINE User ID:
+
+```text
+http://localhost:8765/line.html?lineUserId=Uxxxxxxxx
+```
+
+When a real LIFF app is ready, start the server with:
+
+```powershell
+$env:LIFF_ID="your-liff-id"; .\ops\start-office-mes.ps1
+```
+
 ## Backup
 
 Back up runtime data and uploads with:
