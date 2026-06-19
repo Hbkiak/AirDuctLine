@@ -214,6 +214,7 @@ function normalizeState(state) {
   state.counters = state.counters || {};
   state.jobs.forEach((job) => {
     job.reads = Array.isArray(job.reads) ? job.reads : [];
+    job.replies = Array.isArray(job.replies) ? job.replies : [];
   });
   return state;
 }
@@ -783,6 +784,45 @@ async function readJob(req, res, id) {
   });
 }
 
+async function replyJob(req, res, id) {
+  const { entryStatus, message } = await readJson(req);
+  const state = await readState();
+  const user = requireCurrentUser(req, res, state);
+  if (!user) return;
+  const job = state.jobs.find((item) => item.id === id);
+  if (!job) return error(res, 404, "Job not found");
+  const status = entryStatus || job.status;
+  if (!canReadJob(user, job, status)) {
+    const target = readTarget(job, status);
+    recordActivity(state, user, "reply_denied", job, `พยายามตอบกลับ ${statusLabels[status] || status}; ผู้ต้องอ่านคือ ${target.name || target.role}`);
+    await writeState(state);
+    return error(res, 403, `เอกสารนี้ตอบกลับได้เฉพาะ ${target.name || target.role}`);
+  }
+  const replyMessage = String(message || "").trim();
+  if (!replyMessage) return error(res, 400, "กรุณาใส่ข้อความตอบกลับ");
+  const reply = {
+    id: crypto.randomUUID(),
+    at: new Date().toISOString(),
+    userId: user.id,
+    userName: user.name,
+    role: user.role,
+    status,
+    message: replyMessage,
+  };
+  job.replies = Array.isArray(job.replies) ? job.replies : [];
+  job.replies.unshift(reply);
+  job.replies = job.replies.slice(0, 100);
+  recordActivity(state, user, "reply_job", job, `${statusLabels[status] || status}: ${replyMessage}`);
+  pushLine(state, `${job.salesOwner || "ฝ่ายขาย"}: ${job.id} มีข้อความตอบกลับจาก ${user.name} - ${replyMessage}`);
+  await writeState(state);
+  json(res, 201, {
+    job,
+    user,
+    target: readTarget(job, status),
+    activityLog: state.activityLog.filter((item) => item.jobId === job.id).slice(0, 12),
+  });
+}
+
 async function handleApi(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/health") {
     return json(res, 200, {
@@ -828,6 +868,9 @@ async function handleApi(req, res, pathname) {
 
   const readMatch = pathname.match(/^\/api\/jobs\/([^/]+)\/read$/);
   if (req.method === "POST" && readMatch) return readJob(req, res, decodeURIComponent(readMatch[1]));
+
+  const replyMatch = pathname.match(/^\/api\/jobs\/([^/]+)\/reply$/);
+  if (req.method === "POST" && replyMatch) return replyJob(req, res, decodeURIComponent(replyMatch[1]));
 
   const lineLinkMatch = pathname.match(/^\/api\/users\/([^/]+)\/line-link$/);
   if (req.method === "POST" && lineLinkMatch) return linkLineUser(req, res, decodeURIComponent(lineLinkMatch[1]));

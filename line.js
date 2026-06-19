@@ -195,6 +195,10 @@ function renderTasks() {
             <button class="ghost-button" data-read="${escapeHtml(job.id)}" data-entry-status="${escapeHtml(job.status)}" type="button">เปิดอ่าน</button>
             ${actionHtml(job)}
           </div>
+          <form class="task-actions" data-line-reply-form="${escapeHtml(job.id)}" data-entry-status="${escapeHtml(job.status)}">
+            <textarea name="message" placeholder="ตอบกลับข้อความนี้"></textarea>
+            <button class="ghost-button" type="submit">ส่งข้อความตอบกลับ</button>
+          </form>
         </article>`
     )
     .join("");
@@ -338,6 +342,24 @@ async function readJob(id, entryStatus) {
   toast("บันทึกการเปิดอ่านแล้ว");
 }
 
+async function sendLineReply(form) {
+  const id = form.dataset.lineReplyForm;
+  const entryStatus = form.dataset.entryStatus;
+  const message = String(new FormData(form).get("message") || "").trim();
+  if (!message) {
+    toast("กรุณาใส่ข้อความตอบกลับ");
+    return;
+  }
+  await api(`/api/jobs/${encodeURIComponent(id)}/reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ entryStatus, message }),
+  });
+  form.reset();
+  await loadState();
+  toast("ส่งข้อความตอบกลับแล้ว");
+}
+
 document.getElementById("browserLoginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   try {
@@ -381,6 +403,7 @@ document.getElementById("taskList").addEventListener("submit", async (event) => 
     if (event.target.matches("[data-design-form]")) await sendDesignReply(event.target);
     if (event.target.matches("[data-stock-form]")) await sendStockReply(event.target);
     if (event.target.matches("[data-close-form]")) await closeProduction(event.target);
+    if (event.target.matches("[data-line-reply-form]")) await sendLineReply(event.target);
   } catch (error) {
     toast(error.message);
   }

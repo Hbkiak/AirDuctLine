@@ -971,6 +971,17 @@ function activityLogHtml(items = []) {
     .join("");
 }
 
+function replyLogHtml(replies = [], entryStatus = "") {
+  const items = replies.filter((reply) => !entryStatus || reply.status === entryStatus).slice(0, 12);
+  if (!items.length) return `<div class="log-item">ยังไม่มีข้อความตอบกลับ</div>`;
+  return items
+    .map(
+      (reply) =>
+        `<div class="log-item"><strong>${escapeHtml(reply.userName)}: ${escapeHtml(roleLabel(reply.role))}</strong><span>${escapeHtml(reply.message)}</span><span class="muted">${escapeHtml(new Date(reply.at).toLocaleString("th-TH"))} · ${escapeHtml(statusLabels[reply.status] || reply.status)}</span></div>`
+    )
+    .join("");
+}
+
 async function openDocumentRead(jobId, entryStatus) {
   const detail = await api(`/api/jobs/${encodeURIComponent(jobId)}/read`, {
     method: "POST",
@@ -1007,6 +1018,19 @@ async function openDocumentRead(jobId, entryStatus) {
     <section class="detail-section">
       <h3>ประวัติเปิดอ่าน</h3>
       <div class="notification-log">${readLogHtml(job.reads)}</div>
+    </section>
+    <section class="detail-section">
+      <h3>ข้อความตอบกลับ</h3>
+      <div class="notification-log" data-replies-list>${replyLogHtml(job.replies, entryStatus)}</div>
+      <form class="stack-form reply-form" data-document-reply-form data-job-id="${escapeHtml(job.id)}" data-entry-status="${escapeHtml(entryStatus)}">
+        <label>
+          ตอบกลับ
+          <textarea name="message" rows="3" placeholder="พิมพ์ข้อความตอบกลับสำหรับเอกสารนี้" required></textarea>
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary-button">ส่งข้อความตอบกลับ</button>
+        </div>
+      </form>
     </section>
     <section class="detail-section">
       <h3>Activity Log</h3>
@@ -1055,6 +1079,28 @@ async function submitStockReply(event) {
   setState(nextState);
   closeStockReply();
   showToast(`${jobId} ส่งผลเช็คสต็อกกลับฝ่ายขายแล้ว`);
+}
+
+async function submitDocumentReply(event) {
+  event.preventDefault();
+  const formElement = event.currentTarget;
+  const message = String(new FormData(formElement).get("message") || "").trim();
+  const jobId = formElement.dataset.jobId;
+  const entryStatus = formElement.dataset.entryStatus;
+  if (!message) {
+    showToast("กรุณาใส่ข้อความตอบกลับ");
+    return;
+  }
+  const detail = await api(`/api/jobs/${encodeURIComponent(jobId)}/reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ entryStatus, message }),
+  });
+  const list = document.querySelector("[data-replies-list]");
+  if (list) list.innerHTML = replyLogHtml(detail.job.replies, entryStatus);
+  formElement.reset();
+  setState(await api("/api/state"));
+  showToast("ส่งข้อความตอบกลับแล้ว");
 }
 
 function lineCommandReply(command) {
@@ -1296,6 +1342,14 @@ document.getElementById("stockReplyModal").addEventListener("click", (event) => 
 document.getElementById("closeDocumentReadBtn").addEventListener("click", closeDocumentRead);
 document.getElementById("documentReadModal").addEventListener("click", (event) => {
   if (event.target.id === "documentReadModal") closeDocumentRead();
+});
+document.getElementById("documentReadBody").addEventListener("submit", async (event) => {
+  if (!event.target.matches("[data-document-reply-form]")) return;
+  try {
+    await submitDocumentReply(event);
+  } catch (error) {
+    showToast(error.message);
+  }
 });
 document.getElementById("addLineItemBtn").addEventListener("click", () => {
   document.getElementById("lineItems").appendChild(createLineItemRow());
