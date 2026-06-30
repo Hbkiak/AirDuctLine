@@ -330,9 +330,14 @@ async function logout(req, res) {
 
 function readTarget(job, status = job.status) {
   const salesTarget = { role: "sales", name: job.salesOwner || "" };
+  const productionTeam = {
+    role: "production",
+    name: "ฝ่ายผลิต (คุณ แป๊ะ, คุณ โรง, คุณ เปรมสุข)",
+    userIds: ["prod-pae", "prod-rong", "prod-premsuk"],
+  };
   const targets = {
     NEW_INQUIRY: salesTarget,
-    WAITING_DESIGN: { role: "production", name: "คุณ แป๊ะ" },
+    WAITING_DESIGN: productionTeam,
     WAITING_STOCK: { role: "warehouse", name: "คุณ พล" },
     QUOTING: salesTarget,
     WAITING_CUSTOMER_CONFIRM: salesTarget,
@@ -341,7 +346,7 @@ function readTarget(job, status = job.status) {
     STOCK_REPLY: salesTarget,
     WAITING_SO: salesTarget,
     WAITING_PRODUCTION_PLAN: { role: "planning", name: "คุณ แพ็ด" },
-    IN_PRODUCTION: { role: "production", name: "คุณ แป๊ะ" },
+    IN_PRODUCTION: productionTeam,
     PRODUCTION_DONE: salesTarget,
     WAITING_DELIVERY_CONFIRM: salesTarget,
     WAIT_BOOKING_TRUCK: { role: "logistics", name: "คุณ เรณู" },
@@ -356,8 +361,10 @@ function canReadJob(user, job, status = job.status) {
   if (!user) return false;
   if (user.role === "admin") return true;
   const target = readTarget(job, status);
+  if (Array.isArray(target.userIds) && target.userIds.includes(user.id)) return true;
+  if (Array.isArray(target.names) && target.names.includes(user.name)) return true;
   if (target.name && user.name === target.name) return true;
-  return user.role === target.role && !target.name;
+  return user.role === target.role && !target.name && !Array.isArray(target.userIds) && !Array.isArray(target.names);
 }
 
 function requireCurrentUser(req, res, state) {

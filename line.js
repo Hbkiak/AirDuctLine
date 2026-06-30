@@ -26,6 +26,7 @@ const statusLabels = {
   CLOSED: "สมบูรณ์แล้ว",
 };
 
+const apiBaseUrl = window.location.protocol === "file:" ? "http://127.0.0.1:8765" : "";
 let session = { token: window.localStorage.getItem(sessionStorageKey) || "", user: null, source: "" };
 let state = { jobs: [], users: [] };
 let currentFilter = "mine";
@@ -45,17 +46,37 @@ function toast(message) {
 async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
   if (session.token) headers.set("X-Session-Token", session.token);
-  const response = await fetch(path, { ...options, headers });
+  const url = /^https?:\/\//i.test(path) ? path : `${apiBaseUrl}${path}`;
+  let response;
+  try {
+    response = await fetch(url, { ...options, headers });
+  } catch {
+    throw new Error(`เชื่อมต่อ server ไม่ได้ กรุณาเช็คว่า Office MES เปิดอยู่ และลิงก์นี้เข้าถึง server ได้: ${url}`);
+  }
   if (!response.ok) {
-    let message = "Request failed";
+    let message = `Request failed (${response.status})`;
     try {
       message = (await response.json()).message || message;
     } catch {
       message = await response.text();
     }
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
   return response.json();
+}
+
+async function handleActionError(error) {
+  if (error.status === 401) {
+    setSession({ token: "", user: null, source: "" });
+    try {
+      await renderBrowserLogin();
+    } catch {
+      // Keep the original action error visible if login choices cannot load.
+    }
+  }
+  toast(error.message || "Request failed");
 }
 
 function setSession(nextSession) {
@@ -346,6 +367,7 @@ async function readJob(id, entryStatus) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ entryStatus }),
   });
+  await loadState();
   toast("บันทึกการเปิดอ่านแล้ว");
 }
 
@@ -410,7 +432,7 @@ document.getElementById("browserLoginForm").addEventListener("submit", async (ev
   try {
     await browserLogin(new FormData(event.currentTarget).get("userId"));
   } catch (error) {
-    toast(error.message);
+    await handleActionError(error);
   }
 });
 
@@ -419,7 +441,7 @@ document.getElementById("createJobForm").addEventListener("submit", async (event
   try {
     await createJobFromLine(event.currentTarget);
   } catch (error) {
-    toast(error.message);
+    await handleActionError(error);
   }
 });
 
@@ -428,7 +450,7 @@ document.getElementById("refreshBtn").addEventListener("click", async () => {
     await loadState();
     toast("รีเฟรชแล้ว");
   } catch (error) {
-    toast(error.message);
+    await handleActionError(error);
   }
 });
 
@@ -447,7 +469,7 @@ document.getElementById("taskList").addEventListener("click", async (event) => {
     if (target.matches("[data-move]")) await moveJob(target.dataset.move, target.dataset.status);
     if (target.matches("[data-read]")) await readJob(target.dataset.read, target.dataset.entryStatus);
   } catch (error) {
-    toast(error.message);
+    await handleActionError(error);
   }
 });
 
@@ -459,7 +481,7 @@ document.getElementById("taskList").addEventListener("submit", async (event) => 
     if (event.target.matches("[data-close-form]")) await closeProduction(event.target);
     if (event.target.matches("[data-line-reply-form]")) await sendLineReply(event.target);
   } catch (error) {
-    toast(error.message);
+    await handleActionError(error);
   }
 });
 
